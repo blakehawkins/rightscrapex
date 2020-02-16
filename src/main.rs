@@ -1,12 +1,12 @@
-use std::io::Result;
+use std::io::{Result, Write};
 
+use oops::Oops;
 use select::document::Document;
 use select::predicate::{Attr, Class, Name, Predicate};
 use serde::Serialize;
 use stdinix::stdinix;
 use structopt::{clap::ArgGroup, StructOpt};
 use ureq;
-
 
 /// A rightmove property page scraper.
 #[derive(StructOpt, Debug)]
@@ -33,16 +33,6 @@ struct ScrapeResult {
     price: String,
     floorplan_url: Option<String>,
     location_image_url: String,
-}
-
-trait Oops<T> {
-    fn oops(self, msg: &str) -> Result<T>;
-}
-
-impl<T> Oops<T> for Option<T> {
-    fn oops(self, msg: &str) -> Result<T> {
-        self.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, msg))
-    }
 }
 
 fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
@@ -122,18 +112,20 @@ fn main() -> Result<()> {
 
         let res = filter(&cfg, &res);
 
-        if res.is_some() {
+        if let Some(res) = res {
             match (cfg.json, cfg.urls) {
                 (true, false) => {
-                    println!("{}", serde_json::to_string(&res.expect("Some checked"))?);
-                },
+                    println!("{}", serde_json::to_string(&res)?);
+                    std::io::stdout().flush()
+                }
                 (false, true) => {
-                    println!("{}", res.expect("Some checked").url);
-                },
+                    println!("{}", res.url);
+                    std::io::stdout().flush()
+                }
                 _ => panic!("No emit settings!"),
             }
+        } else {
+            Ok(())
         }
-
-        Ok(())
     })
 }

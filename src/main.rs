@@ -39,35 +39,35 @@ fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
     let summary = doc
         .find(Class("fs-22"))
         .next()
-        .oops("Missing summary")?
+        .oops(&format!("Missing summary for {}", &url))?
         .text()
         .trim()
         .to_owned();
     let human_identifier = doc
         .find(Class("fs-16"))
         .next()
-        .oops("Missing subtitle")?
+        .oops(&format!("Missing subtitle for {}", &url))?
         .text()
         .trim()
         .to_owned();
     let price = doc
         .find(Attr("id", "propertyHeaderPrice").descendant(Name("strong")))
         .next()
-        .oops("Missing price")?
+        .oops(&format!("Missing price for {}", &url))?
         .text()
         .trim()
         .to_owned();
     let floorplan_url = doc
         .find(Attr("id", "floorplansTab"))
         .next()
-        .oops("Missing floorplans tab")
+        .oops(&format!("Missing floorplans tab for {}", &url))
         .and_then(|tab| {
             tab.find(Name("a"))
                 .next()
-                .oops("Missing anchor")
+                .oops(&format!("Missing anchor for {}", &url))
                 .and_then(|node| {
                     node.attr("href")
-                        .oops("Missing href")
+                        .oops(&format!("Missing href for {}", &url))
                         .map(|h| url.clone() + h)
                 })
         })
@@ -75,9 +75,9 @@ fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
     let location_image_url = doc
         .find(Class("js-ga-minimap").descendant(Name("img")))
         .next()
-        .oops("Missing minimap")?
+        .oops(&format!("Missing minimap for {}", &url))?
         .attr("src")
-        .oops("Missing src")?
+        .oops(&format!("Missing src for {}", &url))?
         .to_owned()
         .trim()
         .to_owned();

@@ -1,8 +1,9 @@
+use std::fs::File;
 use std::io::{Result, Write};
 
 use oops::Oops;
 use select::document::Document;
-use select::predicate::{Attr, Class, Name, Predicate};
+use select::predicate::{Attr, Name};
 use serde::Serialize;
 use stdinix::stdinix;
 use structopt::{clap::ArgGroup, StructOpt};
@@ -37,49 +38,68 @@ struct ScrapeResult {
 
 fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
     let summary = doc
-        .find(Class("fs-22"))
+        .find(Attr("itemprop", "streetAddress"))
         .next()
-        .oops(&format!("Missing summary for {}", &url))?
-        .text()
-        .trim()
-        .to_owned();
-    let human_identifier = doc
-        .find(Class("fs-16"))
-        .next()
-        .oops(&format!("Missing subtitle for {}", &url))?
-        .text()
-        .trim()
-        .to_owned();
-    let price = doc
-        .find(Attr("id", "propertyHeaderPrice").descendant(Name("strong")))
-        .next()
-        .oops(&format!("Missing price for {}", &url))?
+        .lazy_oops(|| format!("Missing summary for {}", &url))?
         .text()
         .trim()
         .to_owned();
     let floorplan_url = doc
-        .find(Attr("id", "floorplansTab"))
+        .find(Attr("href", "#/floorplan?activePlan=1"))
         .next()
-        .oops(&format!("Missing floorplans tab for {}", &url))
-        .and_then(|tab| {
-            tab.find(Name("a"))
-                .next()
-                .oops(&format!("Missing anchor for {}", &url))
-                .and_then(|node| {
-                    node.attr("href")
-                        .oops(&format!("Missing href for {}", &url))
-                        .map(|h| url.clone() + h)
-                })
+        .lazy_oops(|| format!("Missing floorplans tab for {}", &url))
+        .and_then(|anchor| {
+            anchor
+                .attr("href")
+                .lazy_oops(|| format!("Missing anchor for {}", &url))
+                .and_then(|href| Ok(url.clone() + &href[href.bytes().position(|v| v == b'/').oops("No / found in anchor")? + 1..]))
         })
         .ok();
-    let location_image_url = doc
-        .find(Class("js-ga-minimap").descendant(Name("img")))
+
+    let page_model = doc
+        .find(Name("script"))
+        .map(|node| node.text())
+        .filter(|text| text.contains("PAGE_MODEL"))
         .next()
-        .oops(&format!("Missing minimap for {}", &url))?
-        .attr("src")
-        .oops(&format!("Missing src for {}", &url))?
-        .to_owned()
-        .trim()
+        .oops("No page model found")?
+        .split(" = ")
+        .skip(1)
+        .collect::<String>();
+
+    // Data from page model.
+    // Price: .propertyData.prices.primaryPrice
+    // Human identifier: .propertyData.text.pageTitle
+    // Location image URL: .propertyData.staticMapImgUrls.staticMapImgUrlMobile
+    let model: serde_json::value::Value = serde_json::from_str(&page_model).oops("Page model couldn't be parsed as json")?;
+    let price = model
+        .get("propertyData")
+        .oops("propertyData not found in model")?
+        .get("prices")
+        .oops("prices not found in model")?
+        .get("primaryPrice")
+        .oops("primaryPrice not found in prices")?
+        .as_str()
+        .oops("primaryPrice wasn't a json string")?
+        .to_owned();
+    let human_identifier = model
+        .get("propertyData")
+        .oops("propertyData not found in model")?
+        .get("text")
+        .oops("text wasn't found model")?
+        .get("pageTitle")
+        .oops("pageTitle wasn't found in text")?
+        .as_str()
+        .oops("pageTitle wasn't a json-string")?
+        .to_owned();
+    let location_image_url = model
+        .get("propertyData")
+        .oops("propertyData not found in model")?
+        .get("staticMapImgUrls")
+        .oops("staticMapImgUrls wasn't found model")?
+        .get("staticMapImgUrlMobile")
+        .oops("staticMapImgUrlMobile wasn't found in image urls")?
+        .as_str()
+        .oops("staticMapImgUrlMobile wasn't a json-string")?
         .to_owned();
 
     Ok(ScrapeResult {
@@ -104,11 +124,19 @@ fn main() -> Result<()> {
     let cfg = Opt::from_args();
 
     stdinix(|line| {
-        let body = ureq::get(&line[..]).call().into_string()?;
+        let body = ureq::get(&line[..])
+            .call()
+            .oops("Failed to request")?
+            .into_string()?;
 
         let doc = Document::from(&body[..]);
 
-        let res = scrape(line.trim().to_owned(), doc)?;
+        let res = scrape(line.trim().to_owned(), doc).or_else(|err| {
+            eprintln!("Dumping document to tmp.html");
+            let mut file = File::create("tmp.html")?;
+            file.write_all(body.as_bytes())?;
+            Err(err)
+        })?;
 
         let res = filter(&cfg, &res);
 

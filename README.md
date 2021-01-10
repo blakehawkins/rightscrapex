@@ -1,4 +1,6 @@
-Take rightmove.co.uk URLs from stdin, emit scraped property details as json.
+Take rightmove.co.uk property URLs from stdin, emit scraped property details as json.
+
+[![](https://img.shields.io/badge/crates.io-rightscrapex-green)](https://crates.io/crates/rightscrapex)
 
 ```bash
 $ cargo run -- --floorplan --json < <(echo https://www.rightmove.co.uk/properties/100454543#/) 2>/dev/null | jq . -r

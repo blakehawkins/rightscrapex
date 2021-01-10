@@ -1,10 +1,13 @@
-Read rightmove property details pages as URLs from stdin, emit scraped data as json.
+Take rightmove.co.uk URLs from stdin, emit scraped property details as json.
 
 ```bash
-$ cargo run -- --floorplan --json < <(echo https://www.rightmove.co.uk/property-to-rent/property-68183922.html)
-    Finished dev [unoptimized + debuginfo] target(s) in 0.17s
-     Running `target/debug/rightscrapex --floorplan --json`
-{"url":"https://www.rightmove.co.uk/property-to-rent/property-68183922.html","summary":"2 bedroom flat to
-rent","human_identifier":"White Hart Lane, Barnes, SW13","price":"£1,500
-pcm","floorplan_url":"https://www.rightmove.co.uk/property-to-rent/property-68183922.html#floorplan","location_image_url":"//media.rightmove.co.uk/map/_generate?latitude=51.466628&longitude=-0.253700&zoomLevel=14&width=190&height=222&signature=ha1gEOpgThpWZ9oYfvRNCWCkmPY="}
+$ cargo run -- --floorplan --json < <(echo https://www.rightmove.co.uk/properties/100454543#/) 2>/dev/null | jq . -r
+{
+  "url": "https://www.rightmove.co.uk/properties/100454543#/",
+  "summary": "Chilmington Green,\nAshford,\nKent,\nTN23 3DP",
+  "human_identifier": "4 bedroom detached house for sale in Chilmington Green,\r\nAshford,\r\nKent,\r\nTN23 3DP, TN23",
+  "price": "£625,000",
+  "floorplan_url": "https://www.rightmove.co.uk/properties/100454543#/floorplan?activePlan=1",
+  "location_image_url": "https://media.rightmove.co.uk/map/_generate?width=375&height=375&zoomLevel=15&latitude=51.12792&longitude=0.82873&signature=DkRafdTA0M7DxgCtvzGYYfVgIOE="
+}
 ```

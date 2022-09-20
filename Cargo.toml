@@ -2,7 +2,7 @@
 name = "rightscrapex"
 version = "0.4.1"
 authors = ["blakehawkins"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Read rightmove property URLs from stdin, emit acceptable rightmove result URLs"
 homepage = "https://github.com/blakehawkins/rightscrapex"
@@ -10,10 +10,10 @@ repository = "https://github.com/blakehawkins/rightscrapex"
 readme = "README.md"
 
 [dependencies]
+clap = { version = "3", features = ["derive"] }
 oops = "0.2.0"
 select = "0.5.0"
 serde = { version = "1.0.118", features = ["derive"] }
 serde_json = "1.0.61"
 stdinix = "0.1.0"
-structopt = "0.3.21"
 ureq = "2.0.0"

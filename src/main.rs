@@ -6,7 +6,7 @@ use select::document::Document;
 use select::predicate::{Attr, Name};
 use serde::Serialize;
 use stdinix::stdinix;
-use structopt::{clap::ArgGroup, StructOpt};
+use clap::{ArgGroup, StructOpt};
 use ureq;
 
 /// A rightmove property page scraper.

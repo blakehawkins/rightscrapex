@@ -10,7 +10,7 @@ repository = "https://github.com/blakehawkins/rightscrapex"
 readme = "README.md"
 
 [dependencies]
-clap = { version = "3", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 oops = "0.2.0"
 select = "0.6.0"
 serde = { version = "1.0.118", features = ["derive"] }

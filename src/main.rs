@@ -6,23 +6,23 @@ use select::document::Document;
 use select::predicate::{Attr, Name};
 use serde::Serialize;
 use stdinix::stdinix;
-use clap::{ArgGroup, StructOpt};
+use clap::{ArgGroup, Parser};
 use ureq;
 
 /// A rightmove property page scraper.
-#[derive(StructOpt, Debug)]
-#[structopt(name = "rightscrapex", group = ArgGroup::with_name("emit"))]
+#[derive(Parser, Debug)]
+#[command(name = "rightscrapex", group = ArgGroup::new("emit"))]
 struct Opt {
     /// Activate filter on listings with floorplan tab
-    #[structopt(short, long)]
+    #[arg(short, long)]
     floorplan: bool,
 
     /// Emit jsonlines
-    #[structopt(short, long, group = "emit")]
+    #[arg(short, long, group = "emit")]
     json: bool,
 
     /// Emit urls
-    #[structopt(short, long, group = "emit")]
+    #[arg(short, long, group = "emit")]
     urls: bool,
 }
 
@@ -121,7 +121,7 @@ fn filter<'a, 'b>(cfg: &'a Opt, res: &'b ScrapeResult) -> Option<&'b ScrapeResul
 }
 
 fn main() -> Result<()> {
-    let cfg = Opt::from_args();
+    let cfg = Opt::parse();
 
     stdinix(|line| {
         let body = ureq::get(&line[..])

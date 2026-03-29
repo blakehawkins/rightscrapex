@@ -11,9 +11,9 @@ readme = "README.md"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-oops = "0.2"
+eyre = "0.6"
 select = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-stdinix = "0.1"
-ureq = "2.8"
+stdinix = "0.3"
+ureq = "3.3"

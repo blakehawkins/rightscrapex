@@ -1,13 +1,12 @@
 use std::fs::File;
-use std::io::{Result, Write};
+use std::io::Write;
 
-use oops::Oops;
+use clap::{ArgGroup, Parser};
+use eyre::{ContextCompat, WrapErr};
 use select::document::Document;
 use select::predicate::{Attr, Name};
 use serde::Serialize;
 use stdinix::stdinix;
-use clap::{ArgGroup, Parser};
-use ureq;
 
 /// A rightmove property page scraper.
 #[derive(Parser, Debug)]
@@ -36,32 +35,38 @@ struct ScrapeResult {
     location_image_url: String,
 }
 
-fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
+fn scrape(url: String, doc: Document) -> eyre::Result<ScrapeResult> {
     let summary = doc
         .find(Attr("itemprop", "streetAddress"))
         .next()
-        .lazy_oops(|| format!("Missing summary for {}", &url))?
+        .context(format!("Missing summary for {}", &url))?
         .text()
         .trim()
         .to_owned();
     let floorplan_url = doc
         .find(Attr("href", "#/floorplan?activePlan=1"))
         .next()
-        .lazy_oops(|| format!("Missing floorplans tab for {}", &url))
+        .context(format!("Missing floorplans tab for {}", &url))
         .and_then(|anchor| {
             anchor
                 .attr("href")
-                .lazy_oops(|| format!("Missing anchor for {}", &url))
-                .and_then(|href| Ok(url.clone() + &href[href.bytes().position(|v| v == b'/').oops("No / found in anchor")? + 1..]))
+                .context(format!("Missing anchor for {}", &url))
+                .and_then(|href| {
+                    Ok(url.clone()
+                        + &href[href
+                            .bytes()
+                            .position(|v| v == b'/')
+                            .context("No / found in anchor")?
+                            + 1..])
+                })
         })
         .ok();
 
     let page_model = doc
         .find(Name("script"))
         .map(|node| node.text())
-        .filter(|text| text.contains("PAGE_MODEL"))
-        .next()
-        .oops("No page model found")?
+        .find(|text| text.contains("PAGE_MODEL"))
+        .context("No page model found")?
         .split(" = ")
         .skip(1)
         .collect::<String>();
@@ -70,36 +75,37 @@ fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
     // Price: .propertyData.prices.primaryPrice
     // Human identifier: .propertyData.text.pageTitle
     // Location image URL: .propertyData.staticMapImgUrls.staticMapImgUrlMobile
-    let model: serde_json::value::Value = serde_json::from_str(&page_model).oops("Page model couldn't be parsed as json")?;
+    let model: serde_json::value::Value =
+        serde_json::from_str(&page_model).context("Page model couldn't be parsed as json")?;
     let price = model
         .get("propertyData")
-        .oops("propertyData not found in model")?
+        .context("propertyData not found in model")?
         .get("prices")
-        .oops("prices not found in model")?
+        .context("prices not found in model")?
         .get("primaryPrice")
-        .oops("primaryPrice not found in prices")?
+        .context("primaryPrice not found in prices")?
         .as_str()
-        .oops("primaryPrice wasn't a json string")?
+        .context("primaryPrice wasn't a json string")?
         .to_owned();
     let human_identifier = model
         .get("propertyData")
-        .oops("propertyData not found in model")?
+        .context("propertyData not found in model")?
         .get("text")
-        .oops("text wasn't found model")?
+        .context("text wasn't found model")?
         .get("pageTitle")
-        .oops("pageTitle wasn't found in text")?
+        .context("pageTitle wasn't found in text")?
         .as_str()
-        .oops("pageTitle wasn't a json-string")?
+        .context("pageTitle wasn't a json-string")?
         .to_owned();
     let location_image_url = model
         .get("propertyData")
-        .oops("propertyData not found in model")?
+        .context("propertyData not found in model")?
         .get("staticMapImgUrls")
-        .oops("staticMapImgUrls wasn't found model")?
+        .context("staticMapImgUrls wasn't found model")?
         .get("staticMapImgUrlMobile")
-        .oops("staticMapImgUrlMobile wasn't found in image urls")?
+        .context("staticMapImgUrlMobile wasn't found in image urls")?
         .as_str()
-        .oops("staticMapImgUrlMobile wasn't a json-string")?
+        .context("staticMapImgUrlMobile wasn't a json-string")?
         .to_owned();
 
     Ok(ScrapeResult {
@@ -112,7 +118,7 @@ fn scrape(url: String, doc: Document) -> Result<ScrapeResult> {
     })
 }
 
-fn filter<'a, 'b>(cfg: &'a Opt, res: &'b ScrapeResult) -> Option<&'b ScrapeResult> {
+fn filter<'b>(cfg: &Opt, res: &'b ScrapeResult) -> Option<&'b ScrapeResult> {
     if cfg.floorplan && res.floorplan_url.is_none() {
         None
     } else {
@@ -120,14 +126,11 @@ fn filter<'a, 'b>(cfg: &'a Opt, res: &'b ScrapeResult) -> Option<&'b ScrapeResul
     }
 }
 
-fn main() -> Result<()> {
+fn main() -> eyre::Result<()> {
     let cfg = Opt::parse();
 
     stdinix(|line| {
-        let body = ureq::get(&line[..])
-            .call()
-            .oops("Failed to request")?
-            .into_string()?;
+        let body = ureq::get(line).call()?.body_mut().read_to_string()?;
 
         let doc = Document::from(&body[..]);
 
@@ -143,12 +146,15 @@ fn main() -> Result<()> {
         if let Some(res) = res {
             match (cfg.json, cfg.urls) {
                 (true, false) => {
-                    println!("{}", serde_json::to_string(&res)?);
-                    std::io::stdout().flush()
+                    println!(
+                        "{}",
+                        serde_json::to_string(&res).context("Failed to serialize json")?
+                    );
+                    std::io::stdout().flush().context("failed to flush stdout")
                 }
                 (false, true) => {
                     println!("{}", res.url);
-                    std::io::stdout().flush()
+                    std::io::stdout().flush().context("failed to flush stdout")
                 }
                 _ => panic!("No emit settings!"),
             }
